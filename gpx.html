@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EXIF位置情報抽出ツール</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            text-align: center;
+            color: #4a5568;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            font-weight: 700;
+        }
+
+        .drop-zone {
+            border: 3px dashed #667eea;
+            border-radius: 12px;
+            padding: 60px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: linear-gradient(45deg, #f8fafc, #e2e8f0);
+            margin-bottom: 30px;
+        }
+
+        .drop-zone:hover {
+            border-color: #764ba2;
+            background: linear-gradient(45deg, #e2e8f0, #cbd5e0);
+            transform: translateY(-2px);
+        }
+
+        .drop-zone.dragover {
+            border-color: #48bb78;
+            background: linear-gradient(45deg, #f0fff4, #c6f6d5);
+            transform: scale(1.02);
+        }
+
+        .drop-zone p {
+            font-size: 1.2em;
+            color: #4a5568;
+            margin: 0;
+        }
+
+        .results {
+            margin-top: 30px;
+        }
+
+        .photo-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid #667eea;
+            transition: transform 0.2s ease;
+        }
+
+        .photo-card:hover {
+            transform: translateX(5px);
+        }
+
+        .photo-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 15px;
+        }
+
+        .location-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .info-item {
+            background: #f7fafc;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid #4299e1;
+        }
+
+        .info-label {
+            font-weight: bold;
+            color: #2b6cb0;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            color: #2d3748;
+            font-size: 1.1em;
+        }
+
+        .no-location {
+            color: #e53e3e;
+            font-style: italic;
+            padding: 15px;
+            background: #fed7d7;
+            border-radius: 8px;
+            border-left: 3px solid #e53e3e;
+        }
+
+        .loading {
+            text-align: center;
+            color: #4a5568;
+            font-style: italic;
+            padding: 20px;
+        }
+
+        .summary {
+            background: linear-gradient(135deg, #4299e1, #3182ce);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .map-link {
+            display: inline-block;
+            background: #48bb78;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            margin-top: 10px;
+            transition: background 0.2s ease;
+        }
+
+        .map-link:hover {
+            background: #38a169;
+        }
+
+        .gpx-section {
+            background: linear-gradient(135deg, #805ad5, #6b46c1);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .gpx-button {
+            background: #48bb78;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin: 10px;
+        }
+
+        .gpx-button:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+        }
+
+        .gpx-button:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .elevation-status {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📸 EXIF位置情報抽出ツール</h1>
+        
+        <div class="drop-zone" id="dropZone">
+            <p>📁 写真ファイルをここにドラッグ&ドロップするか、クリックして選択してください</p>
+            <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
+        </div>
+
+        <div id="summary" class="summary" style="display: none;">
+            <h3>処理結果</h3>
+            <p id="summaryText"></p>
+        </div>
+
+        <div id="results" class="results"></div>
+
+        <div id="gpxSection" class="gpx-section" style="display: none;">
+            <h3>📍 GPXファイル生成</h3>
+            <p>位置情報付きの写真からGPXトラックファイルを生成します</p>
+            <button id="generateGpx" class="gpx-button">GPXファイルを生成</button>
+            <div id="elevationStatus" class="elevation-status" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const results = document.getElementById('results');
+        const summary = document.getElementById('summary');
+        const summaryText = document.getElementById('summaryText');
+        const gpxSection = document.getElementById('gpxSection');
+        const generateGpxBtn = document.getElementById('generateGpx');
+        const elevationStatus = document.getElementById('elevationStatus');
+
+        let processedFiles = 0;
+        let filesWithLocation = 0;
+        let photoData = [];
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', handleDragOver);
+        dropZone.addEventListener('drop', handleDrop);
+        dropZone.addEventListener('dragenter', e => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', e => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+        });
+        fileInput.addEventListener('change', e => handleFiles(e.target.files));
+        generateGpxBtn.addEventListener('click', generateGpxFile);
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            handleFiles(files);
+        }
+
+        function handleFiles(files) {
+            if (files.length === 0) return;
+
+            results.innerHTML = '<div class="loading">処理中...</div>';
+            summary.style.display = 'none';
+            gpxSection.style.display = 'none';
+            processedFiles = 0;
+            filesWithLocation = 0;
+            photoData = [];
+
+            Array.from(files).forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    processImage(file);
+                }
+            });
+        }
+
+        function processImage(file) {
+            EXIF.getData(file, function() {
+                const lat = EXIF.getTag(this, "GPSLatitude");
+                const latRef = EXIF.getTag(this, "GPSLatitudeRef");
+                const lon = EXIF.getTag(this, "GPSLongitude");
+                const lonRef = EXIF.getTag(this, "GPSLongitudeRef");
+                const altitude = EXIF.getTag(this, "GPSAltitude");
+                const altitudeRef = EXIF.getTag(this, "GPSAltitudeRef");
+                const dateTime = EXIF.getTag(this, "DateTime");
+                const camera = EXIF.getTag(this, "Make");
+                const model = EXIF.getTag(this, "Model");
+
+                displayResult(file.name, lat, latRef, lon, lonRef, altitude, altitudeRef, dateTime, camera, model);
+                updateSummary();
+            });
+        }
+
+        function convertDMSToDD(dms, ref) {
+            if (!dms) return null;
+            let dd = dms[0] + dms[1]/60 + dms[2]/3600;
+            if (ref === "S" || ref === "W") dd = dd * -1;
+            return dd.toFixed(6);
+        }
+
+        function displayResult(filename, lat, latRef, lon, lonRef, altitude, altitudeRef, dateTime, camera, model) {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'photo-card';
+
+            if (lat && lon) {
+                filesWithLocation++;
+                const latitude = convertDMSToDD(lat, latRef);
+                const longitude = convertDMSToDD(lon, lonRef);
+                let altitudeValue = null;
+                
+                if (altitude) {
+                    altitudeValue = altitude;
+                    if (altitudeRef === 1) altitudeValue = -altitudeValue;
+                }
+
+                // データを配列に保存
+                photoData.push({
+                    filename: filename,
+                    latitude: parseFloat(latitude),
+                    longitude: parseFloat(longitude),
+                    altitude: altitudeValue,
+                    dateTime: dateTime,
+                    camera: camera,
+                    model: model
+                });
+
+                resultDiv.innerHTML = `
+                    <div class="photo-name">📷 ${filename}</div>
+                    <div class="location-info">
+                        <div class="info-item">
+                            <div class="info-label">緯度</div>
+                            <div class="info-value">${latitude}°</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">経度</div>
+                            <div class="info-value">${longitude}°</div>
+                        </div>
+                        ${altitudeValue !== null ? `
+                            <div class="info-item">
+                                <div class="info-label">標高</div>
+                                <div class="info-value">${altitudeValue.toFixed(1)}m</div>
+                            </div>
+                        ` : ''}
+                        ${dateTime ? `
+                            <div class="info-item">
+                                <div class="info-label">撮影日時</div>
+                                <div class="info-value">${dateTime}</div>
+                            </div>
+                        ` : ''}
+                        ${camera && model ? `
+                            <div class="info-item">
+                                <div class="info-label">カメラ</div>
+                                <div class="info-value">${camera} ${model}</div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <a href="https://www.google.com/maps?q=${latitude},${longitude}" target="_blank" class="map-link">
+                        🗺️ Google Mapsで表示
+                    </a>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div class="photo-name">📷 ${filename}</div>
+                    <div class="no-location">位置情報が見つかりませんでした</div>
+                `;
+            }
+
+            if (processedFiles === 0) {
+                results.innerHTML = '';
+            }
+            results.appendChild(resultDiv);
+            processedFiles++;
+        }
+
+        function updateSummary() {
+            summary.style.display = 'block';
+            summaryText.textContent = `${processedFiles}枚の画像を処理しました。うち${filesWithLocation}枚に位置情報が含まれています。`;
+            
+            if (filesWithLocation > 0) {
+                gpxSection.style.display = 'block';
+            }
+        }
+
+        async function getElevationFromAPI(locations) {
+            try {
+                const response = await fetch('https://api.open-elevation.com/api/v1/lookup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        locations: locations.map(loc => ({
+                            latitude: loc.latitude,
+                            longitude: loc.longitude
+                        }))
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                return data.results;
+            } catch (error) {
+                console.error('標高取得エラー:', error);
+                return null;
+            }
+        }
+
+        function parseDateTime(dateTimeStr) {
+            if (!dateTimeStr) return null;
+            
+            // EXIF datetime format: "YYYY:MM:DD HH:MM:SS"
+            const parts = dateTimeStr.split(' ');
+            if (parts.length !== 2) return null;
+            
+            const datePart = parts[0].replace(/:/g, '-');
+            const timePart = parts[1];
+            
+            return new Date(`${datePart}T${timePart}`);
+        }
+
+        async function generateGpxFile() {
+            if (photoData.length === 0) return;
+
+            generateGpxBtn.disabled = true;
+            elevationStatus.style.display = 'block';
+            elevationStatus.textContent = '標高データを取得中...';
+
+            // 撮影日時でソート
+            const sortedData = photoData
+                .filter(photo => photo.dateTime) // 日時データがあるもののみ
+                .sort((a, b) => {
+                    const dateA = parseDateTime(a.dateTime);
+                    const dateB = parseDateTime(b.dateTime);
+                    return dateA - dateB;
+                });
+
+            if (sortedData.length === 0) {
+                elevationStatus.textContent = '撮影日時データがある写真が見つかりませんでした。';
+                generateGpxBtn.disabled = false;
+                return;
+            }
+
+            // 標高が不明または0以下の場所をAPIで取得
+            const locationsNeedingElevation = sortedData.filter(photo => photo.altitude === null || photo.altitude <= 0);
+            
+            if (locationsNeedingElevation.length > 0) {
+                elevationStatus.textContent = `${locationsNeedingElevation.length}箇所の標高データを取得中...`;
+                
+                const elevationData = await getElevationFromAPI(locationsNeedingElevation);
+                
+                if (elevationData) {
+                    locationsNeedingElevation.forEach((photo, index) => {
+                        if (elevationData[index] && elevationData[index].elevation !== undefined) {
+                            photo.altitude = elevationData[index].elevation;
+                        }
+                    });
+                    elevationStatus.textContent = '標高データを取得完了。GPXファイルを生成中...';
+                } else {
+                    elevationStatus.textContent = '標高データの取得に失敗しました。';
+                }
+            } else {
+                elevationStatus.textContent = 'GPXファイルを生成中...';
+            }
+
+            // 有効な標高データがある写真のみでGPXを生成
+            const validPhotoData = sortedData.filter(photo => 
+                photo.altitude !== null && 
+                photo.altitude !== undefined && 
+                !isNaN(photo.altitude)
+            );
+
+            if (validPhotoData.length === 0) {
+                elevationStatus.textContent = '有効な標高データがある写真が見つかりませんでした。';
+                generateGpxBtn.disabled = false;
+                return;
+            }
+
+            // GPX形式のXMLを生成
+            const gpxContent = generateGpxXML(validPhotoData);
+            
+            // ファイルをダウンロード
+            const blob = new Blob([gpxContent], { type: 'application/gpx+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `photo_track_${new Date().toISOString().split('T')[0]}.gpx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            elevationStatus.textContent = `GPXファイルを生成しました（${validPhotoData.length}ポイント）`;
+            generateGpxBtn.disabled = false;
+        }
+
+        function generateGpxXML(photoData) {
+            const now = new Date().toISOString();
+            
+            let gpxContent = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Photo EXIF GPX Generator" 
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>Photo Track</name>
+    <desc>写真のEXIFデータから生成されたGPXトラック</desc>
+    <time>${now}</time>
+  </metadata>
+  <trk>
+    <name>Photo Track</name>
+    <desc>撮影日時順に並べた写真の位置情報</desc>
+    <trkseg>
+`;
+
+            photoData.forEach(photo => {
+                const dateTime = parseDateTime(photo.dateTime);
+                const isoDateTime = dateTime ? dateTime.toISOString() : now;
+                const elevation = photo.altitude !== null ? photo.altitude.toFixed(1) : '0';
+                
+                gpxContent += `      <trkpt lat="${photo.latitude.toFixed(6)}" lon="${photo.longitude.toFixed(6)}">
+        <ele>${elevation}</ele>
+        <time>${isoDateTime}</time>
+        <name>${photo.filename}</name>
+        <desc>撮影日時: ${photo.dateTime || 'unknown'}</desc>
+      </trkpt>
+`;
+            });
+
+            gpxContent += `    </trkseg>
+  </trk>
+</gpx>`;
+
+            return gpxContent;
+        }
+    </script>
+</body>
+</html>
