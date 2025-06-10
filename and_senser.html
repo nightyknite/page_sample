@@ -1,0 +1,673 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Androidセンサー計測</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            text-align: center;
+            color: #4a5568;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .sensor-card {
+            background: linear-gradient(135deg, #f7fafc, #edf2f7);
+            border-radius: 15px;
+            padding: 20px;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sensor-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+            border-color: #667eea;
+        }
+
+        .sensor-card.active {
+            background: linear-gradient(135deg, #e6fffa, #b2f5ea);
+            border-color: #38b2ac;
+        }
+
+        .sensor-card.inactive {
+            background: linear-gradient(135deg, #fed7d7, #fbb6ce);
+            border-color: #f56565;
+        }
+
+        .sensor-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2d3748;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #cbd5e0;
+        }
+
+        .status-dot.active {
+            background: #48bb78;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.inactive {
+            background: #f56565;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .sensor-data {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #4a5568;
+        }
+
+        .control-panel {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            min-width: 120px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #4fd1c7, #38b2ac);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(79, 209, 199, 0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #f56565, #e53e3e);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(245, 101, 101, 0.3);
+        }
+
+        .info-panel {
+            background: linear-gradient(135deg, #ebf8ff, #bee3f8);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            border-left: 5px solid #3182ce;
+        }
+
+        .info-title {
+            font-weight: 600;
+            color: #2c5282;
+            margin-bottom: 10px;
+        }
+
+        .info-text {
+            color: #2d3748;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .sensor-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Androidセンサー計測</h1>
+        
+        <div class="control-panel">
+            <button class="btn btn-primary" onclick="startMonitoring()">計測開始</button>
+            <button class="btn btn-secondary" onclick="requestPermissions()">権限要求</button>
+            <button class="btn btn-danger" onclick="stopMonitoring()">計測停止</button>
+        </div>
+
+        <div class="sensor-grid">
+            <div class="sensor-card" id="accelerometer-card">
+                <div class="sensor-title">
+                    <span class="status-dot" id="accelerometer-status"></span>
+                    加速度センサー
+                </div>
+                <div class="sensor-data" id="accelerometer-data">
+                    待機中...
+                </div>
+            </div>
+
+            <div class="sensor-card" id="gyroscope-card">
+                <div class="sensor-title">
+                    <span class="status-dot" id="gyroscope-status"></span>
+                    ジャイロスコープ
+                </div>
+                <div class="sensor-data" id="gyroscope-data">
+                    待機中...
+                </div>
+            </div>
+
+            <div class="sensor-card" id="magnetometer-card">
+                <div class="sensor-title">
+                    <span class="status-dot" id="magnetometer-status"></span>
+                    磁気センサー
+                </div>
+                <div class="sensor-data" id="magnetometer-data">
+                    待機中...
+                </div>
+            </div>
+
+            <div class="sensor-card" id="orientation-card">
+                <div class="sensor-title">
+                    <span class="status-dot" id="orientation-status"></span>
+                    画面向きセンサー
+                </div>
+                <div class="sensor-data" id="orientation-data">
+                    待機中...
+                </div>
+            </div>
+
+            <div class="sensor-card" id="geolocation-card">
+                <div class="sensor-title">
+                    <span class="status-dot" id="geolocation-status"></span>
+                    GPS位置情報
+                </div>
+                <div class="sensor-data" id="geolocation-data">
+                    待機中...
+                </div>
+            </div>
+
+            <div class="sensor-card" id="light-card">
+                <div class="sensor-title">
+                    <span class="status-dot" id="light-status"></span>
+                    環境光センサー
+                </div>
+                <div class="sensor-data" id="light-data">
+                    待機中...
+                </div>
+            </div>
+
+            <div class="sensor-card" id="battery-card">
+                <div class="sensor-title">
+                    <span class="status-dot" id="battery-status"></span>
+                    バッテリー情報
+                </div>
+                <div class="sensor-data" id="battery-data">
+                    待機中...
+                </div>
+            </div>
+
+            <div class="sensor-card" id="network-card">
+                <div class="sensor-title">
+                    <span class="status-dot" id="network-status"></span>
+                    ネットワーク情報
+                </div>
+                <div class="sensor-data" id="network-data">
+                    待機中...
+                </div>
+            </div>
+        </div>
+
+        <div class="info-panel">
+            <div class="info-title">📋 使用方法</div>
+            <div class="info-text">
+                1. 「権限要求」ボタンをクリックして必要な権限を許可してください<br>
+                2. 「計測開始」ボタンをクリックしてセンサーの監視を開始します<br>
+                3. 各センサーカードでリアルタイムの値を確認できます<br>
+                4. 「計測停止」ボタンで監視を停止できます
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isMonitoring = false;
+        let sensors = {
+            accelerometer: null,
+            gyroscope: null,
+            magnetometer: null,
+            orientation: null,
+            geolocation: null,
+            light: null,
+            battery: null
+        };
+
+        // センサー状態の更新
+        function updateSensorStatus(sensorName, status, data = null) {
+            const card = document.getElementById(`${sensorName}-card`);
+            const statusDot = document.getElementById(`${sensorName}-status`);
+            const dataElement = document.getElementById(`${sensorName}-data`);
+
+            if (status === 'active') {
+                card.className = 'sensor-card active';
+                statusDot.className = 'status-dot active';
+                if (data) dataElement.innerHTML = data;
+            } else if (status === 'inactive') {
+                card.className = 'sensor-card inactive';
+                statusDot.className = 'status-dot inactive';
+                dataElement.innerHTML = 'サポートされていません';
+            } else {
+                card.className = 'sensor-card';
+                statusDot.className = 'status-dot';
+                dataElement.innerHTML = '待機中...';
+            }
+        }
+
+        // 権限要求
+        async function requestPermissions() {
+            try {
+                // Motion & Orientation permissions
+                if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                    const motionPermission = await DeviceMotionEvent.requestPermission();
+                    console.log('Motion permission:', motionPermission);
+                }
+                
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    const orientationPermission = await DeviceOrientationEvent.requestPermission();
+                    console.log('Orientation permission:', orientationPermission);
+                }
+
+                // Geolocation permission
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        () => console.log('Geolocation permission granted'),
+                        (error) => console.log('Geolocation permission denied:', error)
+                    );
+                }
+
+                alert('権限の要求が完了しました。計測を開始してください。');
+            } catch (error) {
+                console.error('Permission request failed:', error);
+                alert('権限の要求中にエラーが発生しました。');
+            }
+        }
+
+        // 加速度センサー
+        function startAccelerometer() {
+            if (window.DeviceMotionEvent) {
+                const handleMotion = (event) => {
+                    const acc = event.acceleration || event.accelerationIncludingGravity;
+                    if (acc) {
+                        const data = `
+                            X: ${acc.x ? acc.x.toFixed(2) : 'N/A'} m/s²<br>
+                            Y: ${acc.y ? acc.y.toFixed(2) : 'N/A'} m/s²<br>
+                            Z: ${acc.z ? acc.z.toFixed(2) : 'N/A'} m/s²<br>
+                            間隔: ${event.interval ? event.interval.toFixed(0) : 'N/A'} ms
+                        `;
+                        updateSensorStatus('accelerometer', 'active', data);
+                    }
+                };
+                window.addEventListener('devicemotion', handleMotion);
+                sensors.accelerometer = handleMotion;
+                
+                // タイムアウトチェック
+                setTimeout(() => {
+                    if (document.getElementById('accelerometer-data').innerHTML === '待機中...') {
+                        updateSensorStatus('accelerometer', 'inactive');
+                    }
+                }, 2000);
+            } else {
+                updateSensorStatus('accelerometer', 'inactive');
+            }
+        }
+
+        // ジャイロスコープ
+        function startGyroscope() {
+            if (window.DeviceMotionEvent) {
+                const handleMotion = (event) => {
+                    const rotation = event.rotationRate;
+                    if (rotation) {
+                        const data = `
+                            Alpha: ${rotation.alpha ? rotation.alpha.toFixed(2) : 'N/A'} °/s<br>
+                            Beta: ${rotation.beta ? rotation.beta.toFixed(2) : 'N/A'} °/s<br>
+                            Gamma: ${rotation.gamma ? rotation.gamma.toFixed(2) : 'N/A'} °/s
+                        `;
+                        updateSensorStatus('gyroscope', 'active', data);
+                    }
+                };
+                window.addEventListener('devicemotion', handleMotion);
+                sensors.gyroscope = handleMotion;
+                
+                setTimeout(() => {
+                    if (document.getElementById('gyroscope-data').innerHTML === '待機中...') {
+                        updateSensorStatus('gyroscope', 'inactive');
+                    }
+                }, 2000);
+            } else {
+                updateSensorStatus('gyroscope', 'inactive');
+            }
+        }
+
+        // 磁気センサー（画面向きから推定）
+        function startMagnetometer() {
+            if (window.DeviceOrientationEvent) {
+                const handleOrientation = (event) => {
+                    const data = `
+                        Alpha: ${event.alpha ? event.alpha.toFixed(2) : 'N/A'}°<br>
+                        Beta: ${event.beta ? event.beta.toFixed(2) : 'N/A'}°<br>
+                        Gamma: ${event.gamma ? event.gamma.toFixed(2) : 'N/A'}°<br>
+                        絶対値: ${event.absolute ? 'Yes' : 'No'}
+                    `;
+                    updateSensorStatus('magnetometer', 'active', data);
+                };
+                window.addEventListener('deviceorientation', handleOrientation);
+                sensors.magnetometer = handleOrientation;
+                
+                setTimeout(() => {
+                    if (document.getElementById('magnetometer-data').innerHTML === '待機中...') {
+                        updateSensorStatus('magnetometer', 'inactive');
+                    }
+                }, 2000);
+            } else {
+                updateSensorStatus('magnetometer', 'inactive');
+            }
+        }
+
+        // 画面向きセンサー
+        function startOrientation() {
+            const updateOrientation = () => {
+                const orientation = screen.orientation || screen.mozOrientation || screen.msOrientation;
+                const data = `
+                    向き: ${orientation ? orientation.type || orientation : screen.orientation || 'unknown'}<br>
+                    角度: ${orientation ? orientation.angle || window.orientation || 0 : window.orientation || 0}°<br>
+                    幅: ${window.innerWidth}px<br>
+                    高さ: ${window.innerHeight}px
+                `;
+                updateSensorStatus('orientation', 'active', data);
+            };
+            
+            updateOrientation();
+            window.addEventListener('orientationchange', updateOrientation);
+            window.addEventListener('resize', updateOrientation);
+            sensors.orientation = updateOrientation;
+        }
+
+        // GPS位置情報
+        function startGeolocation() {
+            if (navigator.geolocation) {
+                const options = {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 1000
+                };
+                
+                const success = (position) => {
+                    const data = `
+                        緯度: ${position.coords.latitude.toFixed(6)}°<br>
+                        経度: ${position.coords.longitude.toFixed(6)}°<br>
+                        精度: ${position.coords.accuracy.toFixed(0)}m<br>
+                        高度: ${position.coords.altitude ? position.coords.altitude.toFixed(1) + 'm' : 'N/A'}<br>
+                        取得時刻: ${new Date(position.timestamp).toLocaleTimeString()}
+                    `;
+                    updateSensorStatus('geolocation', 'active', data);
+                };
+                
+                const error = (err) => {
+                    updateSensorStatus('geolocation', 'inactive');
+                    console.error('Geolocation error:', err);
+                };
+                
+                const watchId = navigator.geolocation.watchPosition(success, error, options);
+                sensors.geolocation = () => navigator.geolocation.clearWatch(watchId);
+            } else {
+                updateSensorStatus('geolocation', 'inactive');
+            }
+        }
+
+        // 環境光センサー
+        function startLightSensor() {
+            if ('AmbientLightSensor' in window) {
+                try {
+                    const sensor = new AmbientLightSensor();
+                    sensor.addEventListener('reading', () => {
+                        const data = `
+                            照度: ${sensor.illuminance.toFixed(2)} lx<br>
+                            更新時刻: ${new Date().toLocaleTimeString()}
+                        `;
+                        updateSensorStatus('light', 'active', data);
+                    });
+                    sensor.start();
+                    sensors.light = sensor;
+                } catch (error) {
+                    updateSensorStatus('light', 'inactive');
+                }
+            } else {
+                updateSensorStatus('light', 'inactive');
+            }
+        }
+
+        // バッテリー情報
+        async function startBattery() {
+            try {
+                if ('getBattery' in navigator) {
+                    const battery = await navigator.getBattery();
+                    const updateBatteryInfo = () => {
+                        const data = `
+                            充電レベル: ${(battery.level * 100).toFixed(1)}%<br>
+                            充電中: ${battery.charging ? 'Yes' : 'No'}<br>
+                            充電時間: ${battery.chargingTime === Infinity ? 'N/A' : Math.floor(battery.chargingTime / 60) + '分'}<br>
+                            放電時間: ${battery.dischargingTime === Infinity ? 'N/A' : Math.floor(battery.dischargingTime / 60) + '分'}
+                        `;
+                        updateSensorStatus('battery', 'active', data);
+                    };
+                    
+                    updateBatteryInfo();
+                    battery.addEventListener('chargingchange', updateBatteryInfo);
+                    battery.addEventListener('levelchange', updateBatteryInfo);
+                    sensors.battery = battery;
+                } else {
+                    updateSensorStatus('battery', 'inactive');
+                }
+            } catch (error) {
+                updateSensorStatus('battery', 'inactive');
+            }
+        }
+
+        // ネットワーク情報
+        function startNetworkInfo() {
+            const updateNetworkInfo = () => {
+                const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+                let data = `
+                    オンライン: ${navigator.onLine ? 'Yes' : 'No'}<br>
+                    ユーザーエージェント: ${navigator.userAgent.substring(0, 50)}...
+                `;
+                
+                if (connection) {
+                    data += `<br>接続タイプ: ${connection.effectiveType || connection.type || 'Unknown'}<br>
+                             ダウンリンク: ${connection.downlink ? connection.downlink + ' Mbps' : 'N/A'}`;
+                }
+                
+                updateSensorStatus('network', 'active', data);
+            };
+            
+            updateNetworkInfo();
+            window.addEventListener('online', updateNetworkInfo);
+            window.addEventListener('offline', updateNetworkInfo);
+            
+            const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            if (connection) {
+                connection.addEventListener('change', updateNetworkInfo);
+            }
+            
+            sensors.network = updateNetworkInfo;
+        }
+
+        // 計測開始
+        function startMonitoring() {
+            if (isMonitoring) return;
+            
+            isMonitoring = true;
+            
+            startAccelerometer();
+            startGyroscope();
+            startMagnetometer();
+            startOrientation();
+            startGeolocation();
+            startLightSensor();
+            startBattery();
+            startNetworkInfo();
+            
+            console.log('センサー監視を開始しました');
+        }
+
+        // 計測停止
+        function stopMonitoring() {
+            if (!isMonitoring) return;
+            
+            isMonitoring = false;
+            
+            // イベントリスナーの削除
+            if (sensors.accelerometer) {
+                window.removeEventListener('devicemotion', sensors.accelerometer);
+            }
+            if (sensors.gyroscope) {
+                window.removeEventListener('devicemotion', sensors.gyroscope);
+            }
+            if (sensors.magnetometer) {
+                window.removeEventListener('deviceorientation', sensors.magnetometer);
+            }
+            if (sensors.geolocation && typeof sensors.geolocation === 'function') {
+                sensors.geolocation();
+            }
+            if (sensors.light && sensors.light.stop) {
+                sensors.light.stop();
+            }
+            
+            // 全てのセンサー状態をリセット
+            Object.keys(sensors).forEach(sensorName => {
+                updateSensorStatus(sensorName, 'waiting');
+                sensors[sensorName] = null;
+            });
+            updateSensorStatus('network', 'waiting');
+            updateSensorStatus('battery', 'waiting');
+            
+            console.log('センサー監視を停止しました');
+        }
+
+        // ページ読み込み時の初期化
+        window.addEventListener('load', () => {
+            console.log('Androidセンサー計測アプリが準備完了');
+            
+            // 基本的な情報を表示
+            startNetworkInfo();
+        });
+    </script>
+<!-- Code injected by live-server -->
+<script>
+	// <![CDATA[  <-- For SVG support
+	if ('WebSocket' in window) {
+		(function () {
+			function refreshCSS() {
+				var sheets = [].slice.call(document.getElementsByTagName("link"));
+				var head = document.getElementsByTagName("head")[0];
+				for (var i = 0; i < sheets.length; ++i) {
+					var elem = sheets[i];
+					var parent = elem.parentElement || head;
+					parent.removeChild(elem);
+					var rel = elem.rel;
+					if (elem.href && typeof rel != "string" || rel.length == 0 || rel.toLowerCase() == "stylesheet") {
+						var url = elem.href.replace(/(&|\?)_cacheOverride=\d+/, '');
+						elem.href = url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cacheOverride=' + (new Date().valueOf());
+					}
+					parent.appendChild(elem);
+				}
+			}
+			var protocol = window.location.protocol === 'http:' ? 'ws://' : 'wss://';
+			var address = protocol + window.location.host + window.location.pathname + '/ws';
+			var socket = new WebSocket(address);
+			socket.onmessage = function (msg) {
+				if (msg.data == 'reload') window.location.reload();
+				else if (msg.data == 'refreshcss') refreshCSS();
+			};
+			if (sessionStorage && !sessionStorage.getItem('IsThisFirstTime_Log_From_LiveServer')) {
+				console.log('Live reload enabled.');
+				sessionStorage.setItem('IsThisFirstTime_Log_From_LiveServer', true);
+			}
+		})();
+	}
+	else {
+		console.error('Upgrade your browser. This Browser is NOT supported WebSocket for Live-Reloading.');
+	}
+	// ]]>
+</script>
+</body>
+</html>
