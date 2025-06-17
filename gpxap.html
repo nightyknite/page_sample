@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPX ファイル生成ツール</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            padding: 20px;
+            min-height: 600px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .map-section {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .map-header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 15px 20px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .map-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .map-btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .map-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .map-btn.active {
+            background: white;
+            color: #4facfe;
+        }
+
+        #map {
+            height: 500px;
+            width: 100%;
+        }
+
+        .control-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .input-section {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .input-section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .input-field {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+
+        input[type="number"], input[type="datetime-local"], input[type="text"] {
+            padding: 10px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            background: #fafafa;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #4facfe;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(79, 172, 254, 0.6);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.6);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #55a3ff 0%, #003d82 100%);
+            color: white;
+            box-shadow: 0 5px 15px rgba(85, 163, 255, 0.4);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(85, 163, 255, 0.6);
+        }
+
+        .points-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            background: #fafafa;
+        }
+
+        .point-item {
+            padding: 12px;
+            border-bottom: 1px solid #e1e5e9;
+            background: white;
+            margin: 3px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .point-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .point-item:last-child {
+            border-bottom: none;
+        }
+
+        .point-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .point-number {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 15px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .delete-btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            transition: all 0.3s ease;
+        }
+
+        .delete-btn:hover {
+            background: #ee5a24;
+            transform: scale(1.05);
+        }
+
+        .point-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-weight: 600;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .status.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .status.success {
+            background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+            color: white;
+        }
+
+        .status.error {
+            background: linear-gradient(135deg, #e17055 0%, #d63031 100%);
+            color: white;
+        }
+
+        .icon {
+            font-size: 1.1rem;
+        }
+
+        .track-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .info-panel {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #4facfe;
+            margin-bottom: 15px;
+        }
+
+        .info-panel h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1rem;
+        }
+
+        .info-panel p {
+            font-size: 0.9rem;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        .mode-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(79, 172, 254, 0.9);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        @media (max-width: 768px) {
+            .track-info {
+                grid-template-columns: 1fr;
+            }
+            
+            .input-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .point-details {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗺️ GPX ファイル生成ツール</h1>
+            <p>マップ上でクリックして GPS データを作成し、GPX ファイルを生成</p>
+        </div>
+
+        <div class="main-content">
+            <div class="map-section">
+                <div class="map-header">
+                    <span><span class="icon">🗺️</span> インタラクティブマップ</span>
+                    <div class="map-controls">
+                        <button class="map-btn active" id="clickModeBtn" onclick="toggleMode('click')">
+                            <span class="icon">👆</span> クリックモード
+                        </button>
+                        <button class="map-btn" id="panModeBtn" onclick="toggleMode('pan')">
+                            <span class="icon">✋</span> パンモード
+                        </button>
+                        <button class="map-btn" onclick="clearMapPoints()">
+                            <span class="icon">🗑️</span> マップクリア
+                        </button>
+                    </div>
+                </div>
+                <div class="mode-indicator" id="modeIndicator">📍 クリックしてポイントを追加</div>
+                <div id="map"></div>
+            </div>
+
+            <div class="control-section">
+                <div class="input-section">
+                    <h2><span class="icon">⚙️</span> トラック設定</h2>
+                    <div class="track-info">
+                        <div class="input-field">
+                            <label for="trackName">トラック名</label>
+                            <input type="text" id="trackName" placeholder="例: 朝の散歩" value="GPSトラック">
+                        </div>
+                        <div class="input-field">
+                            <label for="trackDesc">説明</label>
+                            <input type="text" id="trackDesc" placeholder="例: 公園周辺のルート">
+                        </div>
+                    </div>
+
+                    <div class="info-panel">
+                        <h3>📍 使い方</h3>
+                        <p>1. クリックモードでマップ上をクリック<br>
+                        2. 標高と時刻を調整（必要に応じて）<br>
+                        3. GPXファイルを生成してダウンロード</p>
+                    </div>
+                </div>
+
+                <div class="input-section">
+                    <h2><span class="icon">📝</span> 最新ポイント編集</h2>
+                    <div class="input-group">
+                        <div class="input-row">
+                            <div class="input-field">
+                                <label for="currentElevation">標高 (m)</label>
+                                <input type="number" id="currentElevation" step="0.1" placeholder="10.0">
+                            </div>
+                            <div class="input-field">
+                                <label for="currentDatetime">日時</label>
+                                <input type="datetime-local" id="currentDatetime">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="btn btn-primary" onclick="updateLastPoint()">
+                            <span class="icon">✏️</span> 最新ポイント更新
+                        </button>
+                    </div>
+                </div>
+
+                <div class="input-section">
+                    <h2><span class="icon">📋</span> ポイントリスト (<span id="pointCount">0</span>)</h2>
+                    <div class="points-list" id="pointsList">
+                        <div style="padding: 30px; text-align: center; color: #999;">
+                            <span class="icon" style="font-size: 2rem;">📍</span>
+                            <p>マップをクリックしてポイントを追加</p>
+                        </div>
+                    </div>
+                    <div class="controls">
+                        <button class="btn btn-success" onclick="generateGPX()" id="generateBtn" disabled>
+                            <span class="icon">💾</span> GPX生成
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearAllPoints()">
+                            <span class="icon">🗑️</span> 全削除
+                        </button>
+                    </div>
+                    <div class="status" id="status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script>
+        let map;
+        let points = [];
+        let pointCounter = 0;
+        let markers = [];
+        let polyline;
+        let isClickMode = true;
+
+        // マップ初期化
+        function initMap() {
+            map = L.map('map').setView([35.681236, 139.767125], 13);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // マップクリックイベント
+            map.on('click', function(e) {
+                if (isClickMode) {
+                    addPointFromMap(e.latlng.lat, e.latlng.lng);
+                }
+            });
+
+            setCurrentTime();
+        }
+
+        // モード切り替え
+        function toggleMode(mode) {
+            isClickMode = (mode === 'click');
+            
+            document.getElementById('clickModeBtn').classList.toggle('active', isClickMode);
+            document.getElementById('panModeBtn').classList.toggle('active', !isClickMode);
+            
+            const indicator = document.getElementById('modeIndicator');
+            if (isClickMode) {
+                indicator.textContent = '📍 クリックしてポイントを追加';
+                map.dragging.enable();
+            } else {
+                indicator.textContent = '✋ パンモード（地図移動）';
+                map.dragging.enable();
+            }
+        }
+
+        // マップからポイント追加
+        function addPointFromMap(lat, lng) {
+            const elevation = parseFloat(document.getElementById('currentElevation').value) || 0;
+            const datetime = document.getElementById('currentDatetime').value;
+
+            if (!datetime) {
+                showStatus('日時を設定してください', 'error');
+                return;
+            }
+
+            const point = {
+                id: ++pointCounter,
+                latitude: lat,
+                longitude: lng,
+                elevation: elevation,
+                datetime: datetime
+            };
+
+            points.push(point);
+            addMarkerToMap(point, points.length);
+            updatePointsList();
+            updateGenerateButton();
+            updatePolyline();
+            showStatus('ポイントが追加されました', 'success');
+
+            // 次のポイントの時刻を1分後に自動設定
+            const nextTime = new Date(datetime);
+            nextTime.setMinutes(nextTime.getMinutes() + 1);
+            const nextLocalDateTime = new Date(nextTime.getTime() - nextTime.getTimezoneOffset() * 60000);
+            document.getElementById('currentDatetime').value = nextLocalDateTime.toISOString().slice(0, 16);
+        }
+
+        // マップにマーカー追加
+        function addMarkerToMap(point, index) {
+            const marker = L.marker([point.latitude, point.longitude])
+                .addTo(map)
+                .bindPopup(`
+                    <div style="font-size: 0.9rem;">
+                        <strong>ポイント ${index}</strong><br>
+                        緯度: ${point.latitude.toFixed(6)}<br>
+                        経度: ${point.longitude.toFixed(6)}<br>
+                        標高: ${point.elevation.toFixed(1)}m<br>
+                        時刻: ${formatDateTime(point.datetime)}
+                    </div>
+                `);
+            
+            markers.push({id: point.id, marker: marker});
+        }
+
+        // ポリライン更新
+        function updatePolyline() {
+            if (polyline) {
+                map.removeLayer(polyline);
+            }
+            
+            if (points.length > 1) {
+                const latLngs = points.map(point => [point.latitude, point.longitude]);
+                polyline = L.polyline(latLngs, {
+                    color: '#4facfe',
+                    weight: 3,
+                    opacity: 0.8
+                }).addTo(map);
+            }
+        }
+
+        // マップのポイントをクリア
+        function clearMapPoints() {
+            markers.forEach(markerObj => {
+                map.removeLayer(markerObj.marker);
+            });
+            markers = [];
+            
+            if (polyline) {
+                map.removeLayer(polyline);
+                polyline = null;
+            }
+        }
+
+        // 最新ポイント更新
+        function updateLastPoint() {
+            if (points.length === 0) {
+                showStatus('更新するポイントがありません', 'error');
+                return;
+            }
+
+            const elevation = parseFloat(document.getElementById('currentElevation').value) || 0;
+            const datetime = document.getElementById('currentDatetime').value;
+
+            if (!datetime) {
+                showStatus('日時を設定してください', 'error');
+                return;
+            }
+
+            const lastPoint = points[points.length - 1];
+            lastPoint.elevation = elevation;
+            lastPoint.datetime = datetime;
+
+            // マーカーのポップアップを更新
+            const lastMarker = markers.find(m => m.id === lastPoint.id);
+            if (lastMarker) {
+                lastMarker.marker.setPopupContent(`
+                    <div style="font-size: 0.9rem;">
+                        <strong>ポイント ${points.length}</strong><br>
+                        緯度: ${lastPoint.latitude.toFixed(6)}<br>
+                        経度: ${lastPoint.longitude.toFixed(6)}<br>
+                        標高: ${lastPoint.elevation.toFixed(1)}m<br>
+                        時刻: ${formatDateTime(lastPoint.datetime)}
+                    </div>
+                `);
+            }
+
+            updatePointsList();
+            showStatus('ポイントが更新されました', 'success');
+
+            // 次のポイントの時刻を1分後に自動設定
+            const nextTime = new Date(datetime);
+            nextTime.setMinutes(nextTime.getMinutes() + 1);
+            const nextLocalDateTime = new Date(nextTime.getTime() - nextTime.getTimezoneOffset() * 60000);
+            document.getElementById('currentDatetime').value = nextLocalDateTime.toISOString().slice(0, 16);
+        }
+
+        // ポイント削除
+        function deletePoint(id) {
+            const pointIndex = points.findIndex(point => point.id === id);
+            if (pointIndex === -1) return;
+
+            points.splice(pointIndex, 1);
+            
+            // マーカー削除
+            const markerIndex = markers.findIndex(m => m.id === id);
+            if (markerIndex !== -1) {
+                map.removeLayer(markers[markerIndex].marker);
+                markers.splice(markerIndex, 1);
+            }
+
+            updatePointsList();
+            updateGenerateButton();
+            updatePolyline();
+            showStatus('ポイントが削除されました', 'success');
+        }
+
+        // 全ポイント削除
+        function clearAllPoints() {
+            if (points.length === 0) return;
+            
+            if (confirm('すべてのポイントを削除しますか？')) {
+                points = [];
+                clearMapPoints();
+                updatePointsList();
+                updateGenerateButton();
+                showStatus('すべてのポイントが削除されました', 'success');
+            }
+        }
+
+        // 現在時刻設定
+        function setCurrentTime() {
+            const now = new Date();
+            const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+            document.getElementById('currentDatetime').value = localDateTime.toISOString().slice(0, 16);
+        }
+
+        // ポイントリスト更新
+        function updatePointsList() {
+            const pointsList = document.getElementById('pointsList');
+            const pointCount = document.getElementById('pointCount');
+            
+            pointCount.textContent = points.length;
+
+            if (points.length === 0) {
+                pointsList.innerHTML = `
+                    <div style="padding: 30px; text-align: center; color: #999;">
+                        <span class="icon" style="font-size: 2rem;">📍</span>
+                        <p>マップをクリックしてポイントを追加</p>
+                    </div>
+                `;
+                return;
+            }
+
+            pointsList.innerHTML = points.map((point, index) => `
+                <div class="point-item">
+                    <div class="point-header">
+                        <span class="point-number">ポイント ${index + 1}</span>
+                        <button class="delete-btn" onclick="deletePoint(${point.id})">削除</button>
+                    </div>
+                    <div class="point-details">
+                        <div><strong>緯度:</strong> ${point.latitude.toFixed(6)}</div>
+                        <div><strong>経度:</strong> ${point.longitude.toFixed(6)}</div>
+                        <div><strong>標高:</strong> ${point.elevation.toFixed(1)}m</div>
+                        <div><strong>日時:</strong> ${formatDateTime(point.datetime)}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 日時フォーマット
+        function formatDateTime(datetime) {
+            const date = new Date(datetime);
+            return date.toLocaleString('ja-JP', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // 生成ボタン更新
+        function updateGenerateButton() {
+            const generateBtn = document.getElementById('generateBtn');
+            generateBtn.disabled = points.length === 0;
+        }
+
+        // GPX生成
+        function generateGPX() {
+            if (points.length === 0) {
+                showStatus('ポイントが追加されていません', 'error');
+                return;
+            }
+
+            const trackName = document.getElementById('trackName').value || 'GPSトラック';
+            const trackDesc = document.getElementById('trackDesc').value || '';
+
+            // 時間順にソート
+            const sortedPoints = [...points].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+
+            const gpxContent = generateGPXContent(trackName, trackDesc, sortedPoints);
+            downloadGPX(gpxContent, trackName);
+            showStatus(`GPXファイル "${trackName}.gpx" をダウンロードしました`, 'success');
+        }
+
+        // GPXコンテンツ生成
+        function generateGPXContent(trackName, trackDesc, points) {
+            const header = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GPX Generator Tool" xmlns="http://www.topografix.com/GPX/1/1">
+    <metadata>
+        <name>${escapeXml(trackName)}</name>
+        <desc>${escapeXml(trackDesc)}</desc>
+        <time>${new Date().toISOString()}</time>
+    </metadata>
+    <trk>
+        <name>${escapeXml(trackName)}</name>
+        <desc>${escapeXml(trackDesc)}</desc>
+        <trkseg>`;
+
+            const trackPoints = points.map(point => {
+                const isoDateTime = new Date(point.datetime).toISOString();
+                return `            <trkpt lat="${point.latitude}" lon="${point.longitude}">
+                <ele>${point.elevation}</ele>
+                <time>${isoDateTime}</time>
+            </trkpt>`;
+            }).join('\n');
+
+            const footer = `
+        </trkseg>
+    </trk>
+</gpx>`;
+
+            return header + '\n' + trackPoints + footer;
+        }
+
+        // XML エスケープ
+        function escapeXml(text) {
+            return text.replace(/[<>&'"]/g, function(char) {
+                switch (char) {
+                    case '<': return '&lt;';
+                    case '>': return '&gt;';
+                    case '&': return '&amp;';
+                    case '"': return '&quot;';
+                    case "'": return '&#39;';
+                    default: return char;
+                }
+            });
+        }
+
+        // ファイルダウンロード
+        function downloadGPX(content, filename) {
+            const blob = new Blob([content], { type: 'application/gpx+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${filename}.gpx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ステータス表示
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.classList.add('show');
+
+            setTimeout(() => {
+                status.classList.remove('show');
+            }, 3000);
+        }
+
+        // ページ読み込み時の初期化
+        window.onload = function() {
+            initMap();
+        };
+    </script>
+</body>
+</html>
